@@ -101,6 +101,21 @@ private fun PreferenceFragmentCompat.addPreferencesFromParserRepository(reposito
 					summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
 				}
 			}
+
+			else -> {
+				val defaultValue = key.defaultValue
+				if (defaultValue is Boolean) {
+					SwitchPreferenceCompat(screen.context).apply {
+						setDefaultValue(defaultValue)
+						title = key.key.replace("_", " ").replaceFirstChar { it.uppercase() }
+					}
+				} else {
+					EditTextPreference(screen.context).apply {
+						summaryProvider = EditTextDefaultSummaryProvider(defaultValue?.toString().orEmpty())
+						title = key.key.replace("_", " ").replaceFirstChar { it.uppercase() }
+					}
+				}
+			}
 		}
 		preference.isIconSpaceReserved = false
 		preference.key = key.key
