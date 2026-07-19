@@ -94,6 +94,7 @@ abstract class BasePageHolder<B : ViewBinding>(
 
 	fun reloadImage() {
 		val source = (viewModel.state.value as? PageState.Shown)?.source ?: return
+		settings.applyBitmapConfig(ssiv) 
 		ssiv.setImage(source)
 	}
 
@@ -182,11 +183,13 @@ abstract class BasePageHolder<B : ViewBinding>(
 
 			is PageState.Loaded -> {
 				bindingInfo.textViewStatus.setText(R.string.preparing_)
+				settings.applyBitmapConfig(ssiv) 
 				ssiv.setImage(state.source)
 			}
 
 			is PageState.Loading -> {
 				if (state.preview != null && ssiv.getState() == null) {
+					settings.applyBitmapConfig(ssiv) 
 					ssiv.setImage(state.preview)
 				}
 			}
