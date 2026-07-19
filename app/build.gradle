@@ -71,11 +71,13 @@ android {
 	}
 	compileOptions {
 		coreLibraryDesugaringEnabled true
-		sourceCompatibility JavaVersion.VERSION_11
-		targetCompatibility JavaVersion.VERSION_11
+		// FIXED: Upgraded to Java 17 compatibility
+		sourceCompatibility JavaVersion.VERSION_17
+		targetCompatibility JavaVersion.VERSION_17
 	}
 	kotlinOptions {
-		jvmTarget = JavaVersion.VERSION_11.toString()
+		// FIXED: Upgraded Kotlin target to Java 17
+		jvmTarget = JavaVersion.VERSION_17.toString()
 		freeCompilerArgs += [
 			'-opt-in=kotlin.ExperimentalStdlibApi',
 			'-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi',
@@ -123,7 +125,7 @@ dependencies {
 		parsersVersion = System.getProperty('parsersVersionOverride')
 	}
 	//noinspection UseTomlInstead
-	implementation("com.github.KotatsuApp:kotatsu-parsers:$parsersVersion") {
+	implementation("com.github.Fixer-kun:kotatsu-parsers-redo:$parsersVersion") {
 		exclude group: 'org.json', module: 'json'
 	}
 
