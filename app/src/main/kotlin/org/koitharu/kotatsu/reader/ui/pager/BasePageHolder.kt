@@ -94,7 +94,7 @@ abstract class BasePageHolder<B : ViewBinding>(
 
 	fun reloadImage() {
 		val source = (viewModel.state.value as? PageState.Shown)?.source ?: return
-		settings.applyBitmapConfig(ssiv) // Force layout configuration validation before source mount
+		settings.applyBitmapConfig(ssiv) 
 		ssiv.setImage(source)
 	}
 
@@ -183,13 +183,13 @@ abstract class BasePageHolder<B : ViewBinding>(
 
 			is PageState.Loaded -> {
 				bindingInfo.textViewStatus.setText(R.string.preparing_)
-				settings.applyBitmapConfig(ssiv) // Direct injection to prevent library asset reset on initial load
+				settings.applyBitmapConfig(ssiv) 
 				ssiv.setImage(state.source)
 			}
 
 			is PageState.Loading -> {
 				if (state.preview != null && ssiv.getState() == null) {
-					settings.applyBitmapConfig(ssiv) // Direct injection for preview scaling channels
+					settings.applyBitmapConfig(ssiv) 
 					ssiv.setImage(state.preview)
 				}
 			}
@@ -200,7 +200,6 @@ abstract class BasePageHolder<B : ViewBinding>(
 
 	protected fun SubsamplingScaleImageView.applyDownSampling(isForeground: Boolean) {
 		downSampling = when {
-			this@BasePageHolder is WebtoonHolder -> 1
 			isForeground || !settings.isReaderOptimizationEnabled -> 1
 			BuildConfig.DEBUG -> 32
 			context.isLowRamDevice() -> 8
