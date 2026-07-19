@@ -36,14 +36,22 @@ class WebtoonHolder(
 	override fun onReady() {
 		binding.ssiv.colorFilter = settings.colorFilter?.toColorFilter()
 		with(binding.ssiv) {
-			scrollTo(
-				when {
-					scrollToRestore != 0 -> scrollToRestore
-					itemView.top < 0 -> getScrollRange()
-					else -> 0
-				},
-			)
-			scrollToRestore = 0
+			val scrollAction = {
+				scrollTo(
+					when {
+						scrollToRestore != 0 -> scrollToRestore
+						itemView.top < 0 -> getScrollRange()
+						else -> 0
+					},
+				)
+				scrollToRestore = 0
+			}
+			// Safely defer tile initialization if the RecyclerView holder hasn't passed layout measurement
+			if (width == 0 || height == 0) {
+				post { if (isReady) scrollAction() }
+			} else {
+				scrollAction()
+			}
 		}
 	}
 
