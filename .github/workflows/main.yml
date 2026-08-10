@@ -1,36 +1,83 @@
-name: Build APK
+name: Daily Parser Check & Release Build
 
 on:
-  workflow_dispatch: # This is the ONLY trigger. Purely manual button click.
+  schedule:
+    # Runs daily at 01:00 UTC (1 hour after sources sync)
+    - cron: '0 1 * * *'
+  workflow_dispatch: # Manual button trigger from phone
+
+permissions:
+  contents: write
 
 jobs:
-  build:
+  check-and-build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
+    - name: Checkout Main Repository
       uses: actions/checkout@v4
 
+    - name: Check for New Parser Commit
+      id: parser_check
+      run: |
+        # Fetch latest commit and extract short 7-character SHA
+        FULL_PARSER_HASH=$(curl -s "https://api.github.com/repos/Fixer-kun/kotatsu-parsers-redo/commits/master" | jq -r '.sha')
+        
+        if [ -z "$FULL_PARSER_HASH" ] || [ "$FULL_PARSER_HASH" = "null" ]; then
+          echo "Error: Could not fetch parser hash."
+          exit 1
+        fi
+
+        SHORT_PARSER_HASH=$(echo "$FULL_PARSER_HASH" | cut -c 1-7)
+        echo "Latest short parser commit: $SHORT_PARSER_HASH"
+
+        CURRENT_PARSER_HASH=$(grep -E '^parsers = ' gradle/libs.versions.toml | cut -d'"' -f2)
+        echo "Current project parser commit: $CURRENT_PARSER_HASH"
+
+        if [ "$SHORT_PARSER_HASH" = "$CURRENT_PARSER_HASH" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+          echo "No new parser updates found. Exiting."
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        else
+          echo "New parser commit found! Updating project..."
+          
+          # Update gradle/libs.versions.toml with short hash
+          sed -i "s/^parsers = \".*\"/parsers = \"$SHORT_PARSER_HASH\"/" gradle/libs.versions.toml
+          
+          # Fetch recent commit titles for changelog
+          COMMIT_NOTES=$(curl -s "https://api.github.com/repos/Fixer-kun/kotatsu-parsers-redo/commits?per_page=5" | jq -r '.[].commit.message' | sed 's/^/- /')
+          
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_ENV
+          echo "### Updated Sources:" >> $GITHUB_ENV
+          echo "$COMMIT_NOTES" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        fi
+
     - name: Set up JDK
+      if: steps.parser_check.outputs.has_changes == 'true'
       uses: actions/setup-java@v4
       with:
         distribution: 'zulu'
         java-version: '17'
 
     - name: Setup Gradle
+      if: steps.parser_check.outputs.has_changes == 'true'
       uses: gradle/actions/setup-gradle@v4
 
     - name: Make Gradlew Executable
+      if: steps.parser_check.outputs.has_changes == 'true'
       run: chmod +x gradlew
 
     - name: Build Release APK
+      if: steps.parser_check.outputs.has_changes == 'true'
       run: ./gradlew assembleRelease --stacktrace
 
     - name: Sign APK
+      if: steps.parser_check.outputs.has_changes == 'true'
       env:
         KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
       run: |
-        # Decode the permanent keystore from Secrets
         echo "$KEYSTORE_BASE64" | base64 -d > release.jks
 
         UNSIGNED_APK=$(find app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
@@ -43,12 +90,36 @@ jobs:
           --out kotatsu-final.apk \
           "$UNSIGNED_APK"
 
-        # Clean up key file after signing
         rm release.jks
 
     - name: Upload Artifact to Summary Page
+      if: steps.parser_check.outputs.has_changes == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: kotatsu-apk
         path: kotatsu-final.apk
         retention-days: 90
+
+    - name: Generate Release Tag & Create GitHub Release
+      if: steps.parser_check.outputs.has_changes == 'true'
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        BASE_VERSION="9.4.1"
+        BUILD_COUNT=$(gh release list --limit 1000 | wc -l | tr -d ' ')
+        NEW_BUILD_NUM=$((BUILD_COUNT + 1))
+        TAG_NAME="v${BASE_VERSION}.${NEW_BUILD_NUM}"
+
+        echo "Publishing Release: $TAG_NAME"
+
+        # Commit updated gradle/libs.versions.toml back to main branch
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add gradle/libs.versions.toml
+        git commit -m "Chore: Update parser hash to $SHORT_PARSER_HASH" || true
+        git push origin master
+
+        # Create GitHub Release and attach final signed APK
+        gh release create "$TAG_NAME" "kotatsu-final.apk#Kotatsu-$TAG_NAME.apk" \
+          --title "Kotatsu $TAG_NAME" \
+          --notes "$RELEASE_NOTES"
