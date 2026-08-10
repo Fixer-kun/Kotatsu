@@ -17,8 +17,9 @@ jobs:
     - name: Checkout Main Repository
       uses: actions/checkout@v4
       with:
-        ref: ${{ github.ref_name }} # Explicitly check out active branch (e.g., devel)
+        ref: ${{ github.ref_name }} # Explicitly checkout active branch
         token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0 # Fetch full history so rebase works cleanly
 
     - name: Check for New Parser Commit
       id: parser_check
@@ -118,14 +119,16 @@ jobs:
 
         echo "Publishing Release: $TAG_NAME"
 
-        # Commit updated gradle/libs.versions.toml directly to active branch (${{ github.ref_name }})
+        # Commit updated gradle/libs.versions.toml back to active branch
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git add gradle/libs.versions.toml
         
-        # Only commit if there are actual diffs to avoid empty commit errors
         if ! git diff --cached --quiet; then
           git commit -m "Chore: Update parser hash to $SHORT_PARSER_HASH"
+          
+          # Pull remote changes first to avoid push rejection errors
+          git pull --rebase origin "${{ github.ref_name }}"
           git push origin "${{ github.ref_name }}"
         else
           echo "No changes in gradle/libs.versions.toml to commit."
