@@ -16,6 +16,9 @@ jobs:
     steps:
     - name: Checkout Main Repository
       uses: actions/checkout@v4
+      with:
+        ref: ${{ github.ref_name }} # Explicitly check out active branch (e.g., devel)
+        token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Check for New Parser Commit
       id: parser_check
@@ -31,7 +34,7 @@ jobs:
         SHORT_PARSER_HASH=$(echo "$FULL_PARSER_HASH" | cut -c 1-7)
         echo "Latest short parser commit: $SHORT_PARSER_HASH"
         
-        # Export short hash to GITHUB_ENV so later steps can read it
+        # Export short hash so future steps can read it
         echo "SHORT_PARSER_HASH=$SHORT_PARSER_HASH" >> $GITHUB_ENV
 
         CURRENT_PARSER_HASH=$(grep -E '^parsers = ' gradle/libs.versions.toml | cut -d'"' -f2)
@@ -115,16 +118,18 @@ jobs:
 
         echo "Publishing Release: $TAG_NAME"
 
-        # Dynamically detect active branch ('devel', 'master', etc.)
-        CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-        echo "Pushing updates to branch: $CURRENT_BRANCH"
-
-        # Commit updated gradle/libs.versions.toml back to active branch
+        # Commit updated gradle/libs.versions.toml directly to active branch (${{ github.ref_name }})
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git add gradle/libs.versions.toml
-        git commit -m "Chore: Update parser hash to $SHORT_PARSER_HASH" || true
-        git push origin "$CURRENT_BRANCH"
+        
+        # Only commit if there are actual diffs to avoid empty commit errors
+        if ! git diff --cached --quiet; then
+          git commit -m "Chore: Update parser hash to $SHORT_PARSER_HASH"
+          git push origin "${{ github.ref_name }}"
+        else
+          echo "No changes in gradle/libs.versions.toml to commit."
+        fi
 
         # Create GitHub Release and attach final signed APK
         gh release create "$TAG_NAME" "kotatsu-final.apk#Kotatsu-$TAG_NAME.apk" \
