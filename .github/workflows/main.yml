@@ -2,7 +2,7 @@ name: Daily Parser Check & Release Build
 
 on:
   schedule:
-    # Runs daily at 01:00 UTC (1 hour after sources sync)
+    # Runs daily at 01:00 UTC (1 hour after sources sync at 00:00 UTC)
     - cron: '0 1 * * *'
   workflow_dispatch: # Manual button trigger from phone
 
@@ -30,6 +30,9 @@ jobs:
 
         SHORT_PARSER_HASH=$(echo "$FULL_PARSER_HASH" | cut -c 1-7)
         echo "Latest short parser commit: $SHORT_PARSER_HASH"
+        
+        # Export short hash to GITHUB_ENV so later steps can read it
+        echo "SHORT_PARSER_HASH=$SHORT_PARSER_HASH" >> $GITHUB_ENV
 
         CURRENT_PARSER_HASH=$(grep -E '^parsers = ' gradle/libs.versions.toml | cut -d'"' -f2)
         echo "Current project parser commit: $CURRENT_PARSER_HASH"
@@ -43,8 +46,8 @@ jobs:
           # Update gradle/libs.versions.toml with short hash
           sed -i "s/^parsers = \".*\"/parsers = \"$SHORT_PARSER_HASH\"/" gradle/libs.versions.toml
           
-          # Fetch recent commit titles for changelog
-          COMMIT_NOTES=$(curl -s "https://api.github.com/repos/Fixer-kun/kotatsu-parsers-redo/commits?per_page=5" | jq -r '.[].commit.message' | sed 's/^/- /')
+          # Fetch recent commit titles ONLY (first line of each commit message) for release notes
+          COMMIT_NOTES=$(curl -s "https://api.github.com/repos/Fixer-kun/kotatsu-parsers-redo/commits?per_page=5" | jq -r '.[].commit.message | split("\n")[0]' | sed 's/^/- /')
           
           echo "RELEASE_NOTES<<EOF" >> $GITHUB_ENV
           echo "### Updated Sources:" >> $GITHUB_ENV
@@ -112,12 +115,16 @@ jobs:
 
         echo "Publishing Release: $TAG_NAME"
 
-        # Commit updated gradle/libs.versions.toml back to main branch
+        # Dynamically detect active branch ('devel', 'master', etc.)
+        CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+        echo "Pushing updates to branch: $CURRENT_BRANCH"
+
+        # Commit updated gradle/libs.versions.toml back to active branch
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git add gradle/libs.versions.toml
         git commit -m "Chore: Update parser hash to $SHORT_PARSER_HASH" || true
-        git push origin master
+        git push origin "$CURRENT_BRANCH"
 
         # Create GitHub Release and attach final signed APK
         gh release create "$TAG_NAME" "kotatsu-final.apk#Kotatsu-$TAG_NAME.apk" \
