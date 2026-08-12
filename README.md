@@ -3,7 +3,7 @@ personal fork for myself.
 Original kotatsu repo:
 https://github.com/KotatsuApp/Kotatsu
 
-i am not intending make this into an actual fork or anything.
+i am not planning to make this into an actual public fork or anything.
 
 there's usagi which is amazing.
 https://github.com/UsagiApp/Usagi
