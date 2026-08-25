@@ -1,4 +1,4 @@
-name: Daily Parser Check & Release Build
+name: Parser Check & Release Build
 
 on:
   workflow_dispatch: # Manual button trigger from phone
