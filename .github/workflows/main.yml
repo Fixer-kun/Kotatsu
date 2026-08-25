@@ -1,9 +1,6 @@
 name: Daily Parser Check & Release Build
 
 on:
-  schedule:
-    # Runs daily at 01:00 UTC (1 hour after sources sync at 00:00 UTC)
-    - cron: '0 1 * * *'
   workflow_dispatch: # Manual button trigger from phone
 
 permissions:
